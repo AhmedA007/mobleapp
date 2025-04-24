@@ -8,7 +8,7 @@ import {
   Switch,
   Image,
   ImageBackground,
-  SafeAreaView,
+  SafeAreaView,   
   Dimensions,
 } from 'react-native';
 import Ionicons from 'react-native-vector-icons/Ionicons';
@@ -30,6 +30,7 @@ const images = {
   bottomBarStats: require('./assets/BottomBar_Stats.png'),
   bottomBarAssistant: require('./assets/BottomBar_Assistant.png'),
   bottomBarAlarm: require('./assets/BottomBar_Alarm.png'),
+  
 };
 
 const App = () => {
@@ -42,7 +43,7 @@ const App = () => {
   // Days of the week for calendar
   const daysOfWeek = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
   const dates = [21, 22, 23, 24, 25, 26, 27];
-
+  
   return (
     <SafeAreaView style={styles.container}>
       <ImageBackground
