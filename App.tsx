@@ -10,16 +10,19 @@ import {
   ImageBackground,
   SafeAreaView,   
   Dimensions,
+  Modal,
+  Platform,
+  Button,
 } from 'react-native';
-import Ionicons from 'react-native-vector-icons/Ionicons';
-import FontAwesome5 from 'react-native-vector-icons/FontAwesome5';
-import { useNavigation, NavigationProp } from '@react-navigation/native'; // Import navigation hook
-import { RootStackParamList } from './types'; // Import the type for navigation routes
+import { useNavigation, NavigationProp } from '@react-navigation/native'; 
+import { RootStackParamList } from './types'; 
+import SoundPlayer from 'react-native-sound-player'; 
+import { createStackNavigator } from '@react-navigation/stack'; 
 
-// Width and height of the screen
+// Get device width and height for responsive design
 const { width, height } = Dimensions.get('window');
 
-// Image sources
+// Image assets used in the app
 const images = {
   homeBackground: require('./assets/HomeBackground.png'),
   bedIcon: require('./assets/DailyAlarm_BedIcon.png'),
@@ -30,20 +33,105 @@ const images = {
   bottomBarStats: require('./assets/BottomBar_Stats.png'),
   bottomBarAssistant: require('./assets/BottomBar_Assistant.png'),
   bottomBarAlarm: require('./assets/BottomBar_Alarm.png'),
-  
 };
 
-const App = () => {
-  const navigation = useNavigation<NavigationProp<RootStackParamList>>(); // Initialize navigation with typed routes
+// Types for days and alarm/bed times
+type DayOfWeek = 'Mon' | 'Tue' | 'Wed' | 'Thu' | 'Fri' | 'Sat' | 'Sun';
+type TimeType = 'bed' | 'alarm';
+type Times = Record<DayOfWeek, { bed: string; alarm: string }>;
 
-  // State for switches
+// Default times for each day
+const defaultTimes: Times = {
+  Mon: { bed: '22:00', alarm: '06:30' },
+  Tue: { bed: '22:00', alarm: '06:30' },
+  Wed: { bed: '22:00', alarm: '06:30' },
+  Thu: { bed: '22:00', alarm: '06:30' },
+  Fri: { bed: '23:00', alarm: '07:30' },
+  Sat: { bed: '23:30', alarm: '08:30' },
+  Sun: { bed: '22:30', alarm: '07:00' },
+};
+
+// Main App component
+const App = () => {
+  const navigation = useNavigation<NavigationProp<RootStackParamList>>();
+
+  // State for switches and time pickers
   const [bedTimeEnabled, setBedTimeEnabled] = useState(true);
   const [alarmEnabled, setAlarmEnabled] = useState(true);
+  const [isPlaying, setIsPlaying] = useState(false); 
+  const [selectedDay, setSelectedDay] = useState<DayOfWeek>('Mon');
+  const [times, setTimes] = useState<Times>(defaultTimes);
+  const [modalVisible, setModalVisible] = useState(false);
+  const [editingType, setEditingType] = useState<TimeType | null>(null);
 
-  // Days of the week for calendar
+  // Days of the week for calendar UI
   const daysOfWeek = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-  const dates = [21, 22, 23, 24, 25, 26, 27];
-  
+
+  // Play or stop relaxing sleep music
+  const handlePlayPause = () => {
+    if (isPlaying) {
+      SoundPlayer.stop();
+      setIsPlaying(false);
+    } else {
+      try {
+        SoundPlayer.playSoundFile('sleepingmusic', 'mp3');
+        setIsPlaying(true);
+      } catch (e) {
+        console.log('Cannot play the sound file', e);
+      }
+    }
+  };
+
+  // Open modal to edit bed/alarm time
+  const openEditModal = (type: 'bed' | 'alarm') => {
+    setEditingType(type);
+    setModalVisible(true);
+  };
+
+  // Update time for selected day and type
+  const handleTimeChange = (newTime: string) => {
+    setTimes(prev => ({
+      ...prev,
+      [selectedDay]: {
+        ...prev[selectedDay],
+        [editingType!]: newTime,
+      },
+    }));
+    setModalVisible(false);
+    setEditingType(null);
+  };
+
+  // Modal for picking time
+  const renderTimePicker = () => (
+    <Modal
+      transparent
+      visible={modalVisible}
+      animationType="slide"
+      onRequestClose={() => setModalVisible(false)}
+    >
+      <View style={{
+        flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.5)'
+      }}>
+        <View style={{
+          backgroundColor: 'white', borderRadius: 10, padding: 20, alignItems: 'center'
+        }}>
+          <Text style={{ fontSize: 18, marginBottom: 10 }}>
+            Set {editingType === 'bed' ? 'Bed Time' : 'Alarm Time'} for {selectedDay}
+          </Text>
+          <View style={{ flexDirection: 'row', marginBottom: 20 }}>
+            {['21:00','22:00','22:30','23:00','23:30','00:00','06:00','06:30','07:00','07:30','08:00','08:30'].map(t => (
+              <TouchableOpacity key={t} onPress={() => handleTimeChange(t)} style={{ margin: 4 }}>
+                <Text style={{ color: '#222', padding: 6, backgroundColor: '#eee', borderRadius: 4 }}>{t}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+          <Button title="Cancel" onPress={() => setModalVisible(false)} />
+        </View>
+      </View>
+    </Modal>
+  );
+
+  // Main UI rendering
   return (
     <SafeAreaView style={styles.container}>
       <ImageBackground
@@ -65,42 +153,47 @@ const App = () => {
             </View>
           </View>
 
-          {/* Notification Card */}
-          <View style={styles.notificationCard}>
-            <TouchableOpacity style={styles.closeButton}>
-              <Text style={styles.closeButtonText}>×</Text>
+          {/* Sleeping Music Card */}
+          <View style={styles.sleepingMusicCard}>
+            <Text style={styles.musicCardTitle}>Relaxing Sleep Music</Text>
+            <Text style={styles.musicCardSubtitle}>
+              Play soothing music to help you sleep better.
+            </Text>
+            <TouchableOpacity style={styles.playButton} onPress={handlePlayPause}>
+              <Text style={styles.playButtonText}>
+                {isPlaying ? 'Stop' : 'Play'}
+              </Text>
             </TouchableOpacity>
-            <Text style={styles.notificationText}>
-              You have slept <Text style={{ fontWeight: 'bold' }}>9h 13m</Text>
-            </Text>
-            <Text style={styles.notificationSubtext}>
-              That is <Text style={{ fontWeight: 'bold' }}>above</Text> your{' '}
-              <Text style={styles.underlinedText}>recommendation</Text>
-            </Text>
+            {isPlaying && (
+              <Text style={{ color: 'white', marginTop: 10 }}>Playing...</Text>
+            )}
           </View>
 
           {/* Sleep Calendar Section */}
           <Text style={styles.calendarTitle}>Your Sleep Calendar</Text>
           <View style={styles.calendar}>
             {daysOfWeek.map((day, index) => (
-              <View key={index} style={styles.calendarColumn}>
-                <Text style={styles.dayText}>{day}</Text>
+              <TouchableOpacity
+                key={index}
+                style={styles.calendarColumn}
+                onPress={() => setSelectedDay(day as DayOfWeek)}
+              >
                 <View
                   style={[
                     styles.dateCircle,
-                    dates[index] === 24 ? styles.activeDateCircle : null,
+                    day === selectedDay ? styles.activeDateCircle : null,
                   ]}
                 >
                   <Text
                     style={[
-                      styles.dateText,
-                      dates[index] === 24 ? styles.activeDateText : null,
+                      styles.dayText,
+                      day === selectedDay ? styles.activeDateText : null,
                     ]}
                   >
-                    {dates[index]}
+                    {day}
                   </Text>
                 </View>
-              </View>
+              </TouchableOpacity>
             ))}
           </View>
 
@@ -113,7 +206,7 @@ const App = () => {
                   style={styles.toolIconContainer}
                   source={images.bedIcon}
                 />
-                <TouchableOpacity>
+                <TouchableOpacity onPress={() => openEditModal('bed')}>
                   <Image
                     style={styles.toolSettingsIcon}
                     source={images.settingsIcon}
@@ -121,7 +214,9 @@ const App = () => {
                 </TouchableOpacity>
               </View>
               <Text style={styles.toolTitle}>Bed time</Text>
-              <Text style={styles.toolTime}>7H and 28Min</Text>
+              <Text style={styles.toolTime}>
+                {times[selectedDay].bed}
+              </Text>
               <Switch
                 value={bedTimeEnabled}
                 onValueChange={setBedTimeEnabled}
@@ -138,7 +233,7 @@ const App = () => {
                   style={styles.toolIconContainer}
                   source={images.alarmIcon}
                 />
-                <TouchableOpacity>
+                <TouchableOpacity onPress={() => openEditModal('alarm')}>
                   <Image
                     style={styles.toolSettingsIcon}
                     source={images.settingsIcon}
@@ -146,7 +241,9 @@ const App = () => {
                 </TouchableOpacity>
               </View>
               <Text style={styles.toolTitle}>Alarm</Text>
-              <Text style={styles.toolTime}>16H and 18Min</Text>
+              <Text style={styles.toolTime}>
+                {times[selectedDay].alarm}
+              </Text>
               <Switch
                 value={alarmEnabled}
                 onValueChange={setAlarmEnabled}
@@ -156,6 +253,8 @@ const App = () => {
               />
             </View>
           </View>
+
+          {renderTimePicker()}
 
           {/* Sleep Problem Card */}
           <View style={styles.problemCard}>
@@ -206,12 +305,30 @@ const App = () => {
               <Image source={images.bottomBarAlarm} />
             </TouchableOpacity>
           </View>
+          
         </View>
       </ImageBackground>
     </SafeAreaView>
   );
 };
 
+// Stack navigator for the app
+const AppNavigator = () => {
+  const Stack = createStackNavigator();
+
+  return (
+    <Stack.Navigator
+      screenOptions={{
+        headerShown: false, // Hide default header
+      }}
+    >
+      <Stack.Screen name="HomeScreen" component={App} />
+      {}
+    </Stack.Navigator>
+  );
+};
+
+// Styles for the app, using device dimensions for responsiveness
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -220,8 +337,9 @@ const styles = StyleSheet.create({
   },
   innerContainer: {
     flex: 1,
-    padding: 20,
-    paddingBottom: height * 0.1, // Add padding to avoid overlap with bottom navigation
+    paddingHorizontal: width * 0.05, 
+    paddingTop: height * 0.04,       
+    paddingBottom: height * 0.18,    
   },
   backgroundImage: {
     flex: 1,
@@ -231,14 +349,14 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
-    marginBottom: height * 0.02,
+    marginBottom: height * 0.015, 
   },
   headerContent: {
     flex: 1,
   },
   headerName: {
     color: '#AAAACC',
-    fontSize: 16,
+    fontSize: width * 0.04,
   },
   greetingContainer: {
     flexDirection: 'row',
@@ -246,80 +364,41 @@ const styles = StyleSheet.create({
   },
   greeting: {
     color: 'white',
-    fontSize: 24,
+    fontSize: width * 0.06,
     fontWeight: 'bold',
   },
   sunEmoji: {
-    fontSize: 22,
-    marginLeft: 8,
-  },
-  bellButton: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: '#807946',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  notificationCard: {
-    backgroundColor: 'rgba(11, 97, 150, 0.7)',
-    borderRadius: 16,
-    padding: height * 0.06,
-    marginBottom: height * 0.02,
-    position: 'relative',
-  },
-  closeButton: {
-    position: 'absolute',
-    top: height * 0.01,
-    right: height * 0.02,
-  },
-  closeButtonText: {
-    color: 'white',
-    fontSize: 24,
-  },
-  notificationText: {
-    color: 'white',
-    fontSize: 16,
-    textAlign: 'center',
-  },
-  notificationSubtext: {
-    color: 'white',
-    fontSize: 14,
-    textAlign: 'center',
-  },
-  underlinedText: {
-    textDecorationLine: 'underline',
+    fontSize: width * 0.055,
+    marginLeft: width * 0.02,
   },
   calendarTitle: {
     color: 'white',
-    fontSize: 18,
+    fontSize: width * 0.045,
     fontWeight: 'bold',
-    marginBottom: height * 0.015,
+    marginBottom: height * 0.012,
   },
   calendar: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginBottom: height * 0.02,
+    marginBottom: height * 0.015,
   },
   calendarColumn: {
     alignItems: 'center',
   },
   dayText: {
     color: '#AAA',
-    marginBottom: height * 0.008,
+    marginBottom: height * 0.005,
+    fontSize: width * 0.035,
   },
   dateCircle: {
-    width: height * 0.04,
-    height: height * 0.04,
-    borderRadius: 100,
+    width: width * 0.11,
+    height: width * 0.11,
+    borderRadius: width * 0.055,
     justifyContent: 'center',
     alignItems: 'center',
   },
   activeDateCircle: {
     backgroundColor: 'white',
-  },
-  dateText: {
-    color: '#AAA',
   },
   activeDateText: {
     color: '#1E1F38',
@@ -328,28 +407,31 @@ const styles = StyleSheet.create({
   toolsContainer: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginBottom: height * 0.02,
+    marginBottom: height * 0.015,
   },
   toolCard: {
     backgroundColor: 'rgba(11, 97, 150, 0.4)',
     borderRadius: 16,
-    padding: height * 0.02,
+    padding: width * 0.04,
     width: '48%',
+    minHeight: height * 0.18,
   },
   toolHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginBottom: height * 0.01,
+    marginBottom: height * 0.008,
   },
   toolIconContainer: {
-    width: '25%',
-    borderRadius: 20,
-    aspectRatio: 1,
+    width: width * 0.09,
+    height: width * 0.09,
+    borderRadius: width * 0.045,
     justifyContent: 'center',
     alignItems: 'center',
   },
   toolSettingsIcon: {
-    borderRadius: 20,
+    width: width * 0.07,
+    height: width * 0.07,
+    borderRadius: width * 0.035,
     opacity: 0.75,
     top: 10,
     right: 2,
@@ -358,53 +440,84 @@ const styles = StyleSheet.create({
   },
   toolTitle: {
     color: 'white',
-    fontSize: 24,
+    fontSize: width * 0.05,
     width: '75%',
     fontWeight: 'bold',
   },
   toolTime: {
     color: '#FFF',
     opacity: 0.4,
-    fontSize: 14,
+    fontSize: width * 0.04,
     width: '75%',
-    marginBottom: 12,
+    marginBottom: height * 0.01,
   },
   switch: {
     opacity: 0.95,
     alignSelf: 'flex-start',
-    transform: [{ scaleX: 1.5 }, { scaleY: 1.5 }],
-    marginBottom: 10,
+    transform: [{ scaleX: 1.2 }, { scaleY: 1.2 }],
+    marginBottom: height * 0.01,
+  },
+  sleepingMusicCard: {
+    backgroundColor: 'rgba(11, 97, 150, 0.7)',
+    borderRadius: 16,
+    paddingVertical: height * 0.04,
+    paddingHorizontal: width * 0.04,
+    marginBottom: height * 0.015,
+    alignItems: 'center',
+  },
+  musicCardTitle: {
+    color: 'white',
+    fontSize: width * 0.045,
+    fontWeight: 'bold',
+    marginBottom: height * 0.01,
+  },
+  musicCardSubtitle: {
+    color: 'white',
+    fontSize: width * 0.035,
+    textAlign: 'center',
+    marginBottom: height * 0.015,
+  },
+  playButton: {
+    backgroundColor: 'rgba(4, 217, 143, 0.75)',
+    borderRadius: 8,
+    paddingVertical: height * 0.012,
+    paddingHorizontal: width * 0.08,
+  },
+  playButtonText: {
+    fontSize: width * 0.045,
+    color: 'white',
+    fontWeight: 'bold',
   },
   problemCard: {
     backgroundColor: 'rgba(5, 161, 132, 0.4)',
     borderRadius: 16,
-    padding: height * 0.025,
+    padding: width * 0.05,
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginBottom: 24,
+    marginBottom: height * 0.015,
   },
   problemQuestion: {
     color: '#FFF',
     opacity: 0.4,
-    fontSize: 16,
+    fontSize: width * 0.04,
     marginBottom: -height * 0.005,
   },
   problemTitle: {
     color: 'white',
-    fontSize: 32,
+    fontSize: width * 0.08,
     fontWeight: 'bold',
-    marginBottom: height * 0.02,
+    marginBottom: height * 0.01,
   },
   assistantButton: {
     backgroundColor: 'rgba(4, 217, 143, 0.75)',
     borderRadius: 8,
-    paddingVertical: height * 0.008,
+    paddingVertical: height * 0.01,
     opacity: 0.95,
     paddingHorizontal: width * 0.06,
     alignSelf: 'flex-start',
   },
   assistantButtonText: {
-    fontSize: 16,
+    fontSize: width * 0.04,
     color: 'white',
     fontWeight: 'bold',
   },
@@ -412,8 +525,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   sleepImage: {
-    width: 160,
-    height: 120,
+    width: width * 0.4,
+    height: height * 0.15,
     resizeMode: 'contain',
   },
   bottomNav: {
@@ -421,22 +534,22 @@ const styles = StyleSheet.create({
     justifyContent: 'space-around',
     backgroundColor: 'rgba(38, 32, 153, 0.5)',
     borderRadius: 16,
-    paddingVertical: height * 0.02, // Use relative height for padding
-    paddingHorizontal: width * 0.05, // Use relative width for padding
-    position: 'absolute', // Ensure it stays at the bottom
-    bottom: 0, // Align to the bottom of the screen
-    width: '100%', // Ensure it spans the full width of the screen
+    padding: height * 0.015,
+    position: 'absolute',
+    bottom: height * 0.02,
+    alignSelf: 'center', 
+    width: width * 0.92,
   },
   navItem: {
     opacity: 0.5,
-    flex: 1, // Distribute space evenly among navigation items
-    alignItems: 'center', // Center the content horizontally
+    flex: 1, 
+    alignItems: 'center',
   },
   navSelectedItem: {
     opacity: 1,
-    flex: 1, // Distribute space evenly among navigation items
-    alignItems: 'center', // Center the content horizontally
+    flex: 1,
+    alignItems: 'center',
   },
 });
 
-export default App;
+export default AppNavigator;
